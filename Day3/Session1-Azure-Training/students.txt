@@ -1,0 +1,7 @@
+# One student per line:  email,firstname
+# Lines starting with # are ignored.
+# Edit this file before running setup_students.sh
+
+abebe.tesfaye@example.com,abebe
+sara.bekele@example.com,sara
+dawit.haile@example.com,dawit
