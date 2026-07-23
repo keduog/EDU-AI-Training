@@ -1,153 +1,186 @@
-# Day 4 · Session 3 — LoRA: Fine-Tuning That Actually Fits
+# Day 4 · Session 4 — Did It Work? Evidence, Sharing & Judgement
 
-**13:45 – 15:15 (1.5 hours)**
+**15:30 – 16:30 (1 hour)**
 
-Freeze 99.8% of the model, train the other 0.2%, and run it for real on a free GPU.
-
-> The notebook is **self-contained** — it reloads everything, so it works even if Colab
-> restarted over lunch.
+Compare honestly, publish your adapter, and learn when fine-tuning is the **wrong** tool.
 
 ---
 
-## 1. What fine-tuning actually is
+## 1. The comparison
 
-A model is a huge pile of numbers — Qwen2-0.5B has **494 million** of them, learned by
-reading enormous amounts of text.
+Same questions. Same model. One thing changed.
 
-**Fine-tuning** shows it examples of the behaviour you want, and nudges those numbers
-to match.
+Open **`session4_compare_and_share.ipynb`** and run the before/after cell.
 
-The problem: changing *all* of them is brutally expensive.
+### Judge each answer on three things
 
-| | Full fine-tuning | LoRA |
+| Question | Before | After |
 |---|---|---|
-| Numbers trained | 494,000,000 | ~1,000,000 |
-| Memory needed | ~8 GB (optimizer alone) | ~2 GB total |
-| Fits on free Colab? | Barely, if at all | Comfortably |
-| Result file | ~1 GB | **~5 MB** |
+| Did it answer **in Amharic**? | | |
+| Did it **stop**, or ramble forever? | | |
+| Does it sound like **customer service**? | | |
 
 ---
 
-## 2. How LoRA works, in plain language
+## 2. Set your expectations correctly
 
-1. **Freeze** the entire original model. Nothing in it will change.
-2. **Add** small extra matrices ("adapters") beside the attention layers.
-3. **Train only the adapters.**
+Ten minutes of training on 1,000 examples produces a **real but modest** change.
 
-Because the frozen 99.8% needs no gradients and no optimizer state, the memory cost
-collapses. You get most of the benefit for a fraction of the resources.
+**What usually improves**
+- ✅ Answering in Amharic more consistently
+- ✅ Following the question/answer format
+- ✅ Stopping instead of rambling
 
-**The payoff:** your fine-tuned result is a 5 MB file. You can email it. You can keep
-fifty of them — one per language, per task, per customer — alongside a single copy of
-the base model.
+**What usually does NOT improve**
+- ❌ Factual knowledge it never had
+- ❌ Reasoning ability
+- ❌ Fluency beyond what the base model could already do
+
+> **If you claim more than you can show, that is marketing, not engineering.**
+>
+> Being able to say clearly what did *not* improve is a professional skill. It is also
+> what separates a trustworthy report from a demo that falls apart under questioning.
 
 ---
 
-## 3. The three settings you will touch
+## 3. One objective measurement
 
+Judgement is subjective. The notebook also counts something you can actually verify:
+**what percentage of the reply is in Ge'ez script.**
+
+```
+Question        BEFORE     AFTER
+----------------------------------
+Q1                 40%       95%
+Q2                 20%       88%
+Q3                 55%       91%
+----------------------------------
+AVERAGE            38%       91%
+```
+
+> **Careful with this number.** A higher Amharic ratio means the model *replied in
+> Amharic more often*. It does **not** mean the answers are correct or useful.
+>
+> Measuring the easy thing and claiming it proves the hard thing is a classic mistake —
+> and it is everywhere in AI marketing.
+
+---
+
+## 4. Publish your adapter
+
+Your 5 MB adapter can be used by anyone in the world, in three lines of code.
+
+### Get a token
+1. <https://huggingface.co/settings/tokens>
+2. **New token** → role: **WRITE** → create
+3. Copy it — it is shown only once
+
+### Push it
 ```python
-LoraConfig(
-    task_type=TaskType.CAUSAL_LM,
-    r=16,                              # rank
-    lora_alpha=32,                     # strength
-    lora_dropout=0.05,
-    target_modules=["q_proj","v_proj"] # which layers
-)
+from huggingface_hub import notebook_login
+notebook_login()          # paste the WRITE token
+
+model.push_to_hub("YOUR-USERNAME/qwen2-0.5b-amharic-lora")
+tok.push_to_hub("YOUR-USERNAME/qwen2-0.5b-amharic-lora")
 ```
 
-| Setting | What it means | Normal range |
-|---|---|---|
-| **`r` (rank)** | Adapter capacity. Higher learns more, uses more memory. | 8 – 32 |
-| **`lora_alpha`** | How strongly the adapter affects the model. | usually 2 × r |
-| **`target_modules`** | Which layers get adapters. `q_proj`/`v_proj` are the attention layers. | standard choice |
+### Anyone can now use your work
+```python
+from peft import PeftModel
+from transformers import AutoModelForCausalLM
 
-After applying it you should see roughly:
-
-```
-trainable params: 1,081,344 || all params: 495,114,240 || trainable%: 0.2184
+base  = AutoModelForCausalLM.from_pretrained("Qwen/Qwen2-0.5B-Instruct")
+model = PeftModel.from_pretrained(base, "YOUR-USERNAME/qwen2-0.5b-amharic-lora")
 ```
 
-**0.2%.** That is the whole idea.
+**That is a real contribution to Amharic AI.** Someone in Bahir Dar can build on it
+tomorrow.
 
 ---
 
-## 4. The labs
+## 5. The most valuable lesson: when NOT to fine-tune
 
-Open **`session3_finetune_lora.ipynb`**.
+**Try these in order.** Most problems stop at step 1.
 
-| Lab | What you do | Time |
-|---|---|---|
-| **3A** | Attach LoRA adapters, see trainable params drop to 0.2% | 20 min |
-| **3B** | Run the real fine-tuning (~10 min on a T4) | 40 min |
-| **3C** | Save the adapter and see how small it is | 10 min |
+| Approach | Cost | Time | Use it when |
+|---|---|---|---|
+| **1. Better prompt** | Free | Minutes | Almost always try first |
+| **2. RAG** (look facts up) | Cheap | Hours | The model needs *facts* it does not have |
+| **3. Fine-tuning** | Real GPU cost | Days | You need consistent *style, format or language* |
 
----
+### Fine-tuning is GOOD at
+- Style, tone and output format
+- Speaking a language more consistently
+- Following your organisation's specific instructions
+- Sounding like you
 
-## 5. Reading the loss while it trains
+### Fine-tuning is BAD at
+- Adding facts — **use RAG**, it looks them up and updates instantly
+- Fixing what a better prompt would fix
+- Making a small model as clever as a large one
+- Compensating for bad or tiny data
 
-The `loss` column is the single number to watch.
-
-| What you see | What it means | What to do |
-|---|---|---|
-| Falling (2.5 → 1.6) | **Learning.** This is what you want. | Nothing. Let it run. |
-| Flat | Learning rate too low, or the data is broken | Check your data formatting |
-| Jumping wildly | Learning rate too high | Lower it to 1e-4 |
-| `nan` | Numerical blow-up | Restart, lower the learning rate |
-
-**Do not close the browser tab** — Colab disconnects and you lose the run.
-
----
-
-## 6. Why only 1,000 examples and 1 epoch?
-
-So it finishes inside the lesson.
-
-Real projects use all 83,000 examples and train for hours or days. **The code is
-identical** — only the numbers change. What you learn here scales directly.
+> **A common and expensive mistake:** fine-tuning a model to memorise a company
+> handbook. RAG does that better, cheaper, and updates the moment the handbook changes.
 
 ---
 
-## 7. Download your adapter before you leave
+## 6. Why this matters beyond the classroom
 
-> ### Colab deletes everything when the session ends.
+**Big labs will not fix Amharic for you.** There is no commercial reason for them to
+prioritise 60 million speakers. If it happens, people here do it.
 
-In the file panel on the left: right-click the `qwen-amharic-lora` folder → **Download**.
+**The dataset was the hard part, not the code.** You ran ten lines to fine-tune.
+Someone spent months building the 83,000 examples that made it possible.
 
-Or push it to Hugging Face in Session 4 — better, because then it is permanent and
-shareable.
+**Small models are the realistic path.** A 0.5B model that runs on hardware you actually
+own beats a 70B model you can only rent.
 
----
-
-## 8. Checklist
-
-- [ ] I can explain LoRA in my own words
-- [ ] I attached adapters and saw ~0.2% trainable parameters
-- [ ] GPU memory stayed low — no OOM
-- [ ] Training started and the **loss went down**
-- [ ] Training finished without crashing
-- [ ] I saved the adapter and checked its size
-- [ ] I downloaded it (or will push it in Session 4)
+**This runs on the edge.** A fine-tuned 0.5B model fits on a laptop or a field device —
+no internet, no cloud bill, and the data never leaves the device. That connects straight
+back to the Edge AI discussion on Day 1.
 
 ---
 
-## 9. If something goes wrong
+## 7. Day 4 final checklist
+
+- [ ] I know how to check my GPU and its free memory
+- [ ] I can predict whether a model will fit before downloading it
+- [ ] I triggered an OOM crash on purpose and understand it
+- [ ] I measured the Amharic tokenizer penalty
+- [ ] I recorded baseline answers before changing anything
+- [ ] I attached LoRA adapters and trained the model
+- [ ] I compared before and after **honestly**
+- [ ] I can say what did NOT improve
+- [ ] **I downloaded my adapter or pushed it to Hugging Face**
+
+> Colab deletes everything when the session ends. If your adapter is still only in
+> Colab, save it **now**.
+
+---
+
+## 8. If something goes wrong
 
 | Problem | Fix |
 |---|---|
-| OOM during training | Lower `per_device_train_batch_size` from 4 to 2, or `MAX_LEN` from 384 to 256 |
-| Loss is `nan` | Restart, then set `learning_rate=1e-4` |
-| Loss does not fall | Check `data[0]["text"]` looks correct — the formatting may be broken |
-| `ValueError: target modules not found` | Different model architecture. For Qwen use `["q_proj","v_proj"]`. |
-| Training is very slow | Check you are on a **T4 GPU**, not CPU. `torch.cuda.is_available()` must be True. |
-| Colab disconnected mid-training | You lose the run. Re-run from Cell 1. Keep the tab visible next time. |
-| `!du` shows nothing | You did not run the save cell. Run Cell 8. |
+| `before` is not defined | Colab restarted. Run Cell 1B to reload from `baseline.pkl`, or re-run the baseline. |
+| The "after" answers look no better | Honest and normal for 1,000 examples. Say so. That is a valid result. |
+| `push_to_hub` fails with 401 | Your token is missing or is READ-only. Create a new one with **WRITE**. |
+| `Repository not found` on push | Change `HF_USERNAME` to your actual Hugging Face username. |
+| The adapter folder is missing | You did not run the save cell in Session 3. |
 
 ---
 
 ## What you learned
 
-1. **Freeze most, train little.** 0.2% of the parameters, most of the benefit.
-2. **Loss falling = learning.** The one number to watch.
-3. **An adapter is 5 MB.** One base model, many tiny adapters — that is how teams ship.
+1. **Constraints are the skill.** Anyone can train with unlimited GPUs. Making it work
+   in 15 GB is the job you will be paid for.
+2. **Prove it, do not claim it.** Baseline first, compare honestly, state the limits.
+3. **Small, local and yours.** A 0.5B model fine-tuned on Ethiopian data, running on
+   Ethiopian hardware, answering in Amharic — that is the whole point.
 
-**Next:** [Session 4 — Evidence & Sharing](../Session4/README.md)
+---
+
+**Tomorrow — Day 5:** deployment and the capstone project.
+
+**Back to:** [Day 4 overview](../README.md)
